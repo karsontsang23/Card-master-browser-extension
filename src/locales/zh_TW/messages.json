@@ -6056,6 +6056,14 @@
     "message": "開啟後在網頁與新分頁顯示可拖動的卡牌大師 Logo；點選可展開牌陣。關閉後仍可使用擴充功能欄圖示或快捷鍵。",
     "description": "src/features/userscript-deck/SettingsBoard.tsx；description"
   },
+  "cm_settings_board_edge_auto_hide_label": {
+    "message": "貼邊自動收起浮動入口",
+    "description": "src/features/userscript-deck/SettingsBoard.tsx；label"
+  },
+  "cm_settings_board_edge_auto_hide_description": {
+    "message": "開啟後，將頁面入口拖近畫面左、右邊緣時自動吸附為直向銘牌，滑鼠移入時展開為圓形圖示。",
+    "description": "src/features/userscript-deck/SettingsBoard.tsx；description"
+  },
   "cm_settings_board_label_104": {
     "message": "全螢幕時自動隱藏浮動入口",
     "description": "src/features/userscript-deck/SettingsBoard.tsx；label"

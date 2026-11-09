@@ -63,6 +63,7 @@ describe('ExtensionDeckEntryController', () => {
         ok: true,
         settings: {
           showDeckTrigger: false,
+          autoHideAtEdge: true,
           showToolbarBadge: true,
           showDeckTriggerBadge: true,
           autoHideInFullscreen: true,
@@ -76,6 +77,7 @@ describe('ExtensionDeckEntryController', () => {
       new ExtensionDeckEntryController(api).readSettings(),
     ).resolves.toEqual({
       showDeckTrigger: false,
+      autoHideAtEdge: true,
       showToolbarBadge: true,
       showDeckTriggerBadge: true,
       autoHideInFullscreen: true,
@@ -98,6 +100,7 @@ describe('ExtensionDeckEntryController', () => {
         ok: true,
         settings: {
           showDeckTrigger: false,
+          autoHideAtEdge: true,
           showToolbarBadge: true,
           showDeckTriggerBadge: true,
           autoHideInFullscreen: true,
@@ -114,6 +117,7 @@ describe('ExtensionDeckEntryController', () => {
       }),
     ).resolves.toEqual({
       showDeckTrigger: false,
+      autoHideAtEdge: true,
       showToolbarBadge: true,
       showDeckTriggerBadge: true,
       autoHideInFullscreen: true,
@@ -272,6 +276,7 @@ describe('ExtensionDeckEntryController', () => {
         type: DECK_ENTRY_SETTINGS_CHANGED_MESSAGE_TYPE,
         settings: {
           showDeckTrigger: true,
+          autoHideAtEdge: true,
           showToolbarBadge: true,
           showDeckTriggerBadge: true,
           autoHideInFullscreen: true,
@@ -285,6 +290,7 @@ describe('ExtensionDeckEntryController', () => {
 
     expect(listener).toHaveBeenCalledWith({
       showDeckTrigger: true,
+      autoHideAtEdge: true,
       showToolbarBadge: true,
       showDeckTriggerBadge: true,
       autoHideInFullscreen: true,
@@ -432,6 +438,7 @@ describe('installExtensionDeckEntrySettingsHandler', () => {
           get: vi.fn(async () => ({
             [DECK_ENTRY_SETTINGS_STORAGE_KEY]: {
               showDeckTrigger: true,
+              autoHideAtEdge: true,
               showToolbarBadge: true,
               showDeckTriggerBadge: true,
               autoHideInFullscreen: true,
@@ -455,6 +462,7 @@ describe('installExtensionDeckEntrySettingsHandler', () => {
     installExtensionDeckEntrySettingsHandler(api);
     const settings = {
       showDeckTrigger: true,
+      autoHideAtEdge: true,
       showToolbarBadge: true,
       showDeckTriggerBadge: true,
       autoHideInFullscreen: true,
@@ -564,6 +572,7 @@ describe('installExtensionDeckEntrySettingsHandler', () => {
       ok: true,
       settings: {
         showDeckTrigger: false,
+        autoHideAtEdge: true,
         showToolbarBadge: true,
         showDeckTriggerBadge: true,
         autoHideInFullscreen: true,

@@ -1,5 +1,5 @@
 import type { DeckEntryPosition } from './deck-entry';
-import type { DeckEntryInsets } from './deck-entry-layout';
+import { DECK_ENTRY_LAYOUT, type DeckEntryInsets } from './deck-entry-layout';
 
 export const DECK_ENTRY_DRAG_THRESHOLD = 6;
 
@@ -10,6 +10,7 @@ export type DeckEntryDragSession = {
   startCenterX: number;
   startCenterY: number;
   insets: DeckEntryInsets;
+  edgeSnap: boolean;
   moved: boolean;
   position: DeckEntryPosition;
 };
@@ -31,17 +32,37 @@ export function normalizedDeckEntryPosition({
   insets,
   viewportWidth,
   viewportHeight,
+  edgeSnap = false,
+  dragging = false,
 }: {
   centerX: number;
   centerY: number;
   insets: DeckEntryInsets;
   viewportWidth: number;
   viewportHeight: number;
+  edgeSnap?: boolean;
+  dragging?: boolean;
 }): DeckEntryPosition {
+  const dragHorizontalInset = DECK_ENTRY_LAYOUT.core.logoSize / 2;
+  const horizontalLeftInset =
+    edgeSnap && dragging ? dragHorizontalInset : insets.left;
+  const horizontalRightInset =
+    edgeSnap && dragging ? dragHorizontalInset : insets.right;
+  const canSnapHorizontally =
+    edgeSnap && !dragging && viewportWidth > insets.left + insets.right;
+  const x =
+    canSnapHorizontally && centerX <= insets.left
+      ? 0
+      : canSnapHorizontally && centerX >= viewportWidth - insets.right
+        ? 1
+        : clampedAxisPosition(
+            centerX,
+            viewportWidth,
+            horizontalLeftInset,
+            horizontalRightInset,
+          ) / viewportWidth;
   return {
-    x:
-      clampedAxisPosition(centerX, viewportWidth, insets.left, insets.right) /
-      viewportWidth,
+    x,
     y:
       clampedAxisPosition(centerY, viewportHeight, insets.top, insets.bottom) /
       viewportHeight,
@@ -58,6 +79,7 @@ export function createDeckEntryDragSession({
   viewportHeight,
   position,
   insets,
+  edgeSnap = false,
 }: {
   pointerId: number;
   pointerX: number;
@@ -68,6 +90,7 @@ export function createDeckEntryDragSession({
   viewportHeight: number;
   position: DeckEntryPosition | null;
   insets: DeckEntryInsets;
+  edgeSnap?: boolean;
 }): DeckEntryDragSession {
   return {
     pointerId,
@@ -76,6 +99,7 @@ export function createDeckEntryDragSession({
     startCenterX: centerX,
     startCenterY: centerY,
     insets,
+    edgeSnap,
     moved: false,
     position:
       position ??
@@ -85,6 +109,7 @@ export function createDeckEntryDragSession({
         insets,
         viewportWidth,
         viewportHeight,
+        edgeSnap,
       }),
   };
 }
@@ -119,9 +144,39 @@ export function updateDeckEntryDragSession(
     insets: session.insets,
     viewportWidth,
     viewportHeight,
+    edgeSnap: session.edgeSnap,
+    dragging: true,
   });
   return {
     position: session.position,
     started,
   };
+}
+
+export function commitDeckEntryDragSession(
+  session: DeckEntryDragSession,
+  {
+    pointerX,
+    pointerY,
+    viewportWidth,
+    viewportHeight,
+  }: {
+    pointerX: number;
+    pointerY: number;
+    viewportWidth: number;
+    viewportHeight: number;
+  },
+) {
+  const deltaX = pointerX - session.startPointerX;
+  const deltaY = pointerY - session.startPointerY;
+  session.position = normalizedDeckEntryPosition({
+    centerX: session.startCenterX + deltaX,
+    centerY: session.startCenterY + deltaY,
+    insets: session.insets,
+    viewportWidth,
+    viewportHeight,
+    edgeSnap: session.edgeSnap,
+    dragging: false,
+  });
+  return session.position;
 }

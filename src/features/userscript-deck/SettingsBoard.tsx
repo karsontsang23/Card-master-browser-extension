@@ -998,6 +998,17 @@ export function SettingsBoard({
               }
             />
             <UiToggle
+              label={t('cm_settings_board_edge_auto_hide_label')}
+              description={t('cm_settings_board_edge_auto_hide_description')}
+              checked={deckEntrySettings.autoHideAtEdge}
+              onChange={(enabled) =>
+                void onDeckEntrySettingsChange({
+                  kind: 'set-edge-auto-hide',
+                  enabled,
+                })
+              }
+            />
+            <UiToggle
               label={t('cm_settings_board_label_104')}
               description={t('cm_settings_board_description_105')}
               checked={deckEntrySettings.autoHideInFullscreen}

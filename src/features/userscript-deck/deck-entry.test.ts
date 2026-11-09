@@ -14,6 +14,7 @@ import {
   DECK_VISIBILITY_REQUEST_MESSAGE_TYPE,
   DEFAULT_DECK_ENTRY_SETTINGS,
   deckCardHidden,
+  deckEntryEdgeSide,
   deckTriggerHidden,
   isDeckCreationPreviewMessage,
   isDeckEntrySettingsChangedMessage,
@@ -47,6 +48,7 @@ describe('deck entry settings', () => {
   it('preserves an explicit hidden trigger setting', () => {
     expect(normalizeDeckEntrySettings({ showDeckTrigger: false })).toEqual({
       showDeckTrigger: false,
+      autoHideAtEdge: true,
       showToolbarBadge: true,
       showDeckTriggerBadge: true,
       autoHideInFullscreen: true,
@@ -60,10 +62,22 @@ describe('deck entry settings', () => {
     });
   });
 
-  it('enables fullscreen auto-hide for old settings and preserves an explicit opt-out', () => {
-    const { autoHideInFullscreen: _default, ...legacy } =
-      DEFAULT_DECK_ENTRY_SETTINGS;
+  it('enables edge and fullscreen auto-hide for old settings and preserves explicit opt-outs', () => {
+    const {
+      autoHideAtEdge: _edgeDefault,
+      autoHideInFullscreen: _default,
+      ...legacy
+    } = DEFAULT_DECK_ENTRY_SETTINGS;
+    expect(normalizeDeckEntrySettings(legacy).autoHideAtEdge).toBe(true);
     expect(normalizeDeckEntrySettings(legacy).autoHideInFullscreen).toBe(true);
+    expect(
+      normalizeDeckEntrySettings({ ...legacy, autoHideAtEdge: 'false' })
+        .autoHideAtEdge,
+    ).toBe(true);
+    expect(
+      normalizeDeckEntrySettings({ ...legacy, autoHideAtEdge: false })
+        .autoHideAtEdge,
+    ).toBe(false);
     expect(
       normalizeDeckEntrySettings({ ...legacy, autoHideInFullscreen: 'false' })
         .autoHideInFullscreen,
@@ -72,6 +86,14 @@ describe('deck entry settings', () => {
       normalizeDeckEntrySettings({ ...legacy, autoHideInFullscreen: false })
         .autoHideInFullscreen,
     ).toBe(false);
+    expect(deckEntryEdgeSide(null)).toBeNull();
+    expect(deckEntryEdgeSide({ x: 0.5, y: 0.5 })).toBeNull();
+    expect(deckEntryEdgeSide({ x: 0.2, y: 0.5 })).toBeNull();
+    expect(deckEntryEdgeSide({ x: 0.8, y: 0.5 })).toBeNull();
+    expect(deckEntryEdgeSide({ x: 0, y: 0.5 })).toBe('left');
+    expect(deckEntryEdgeSide({ x: 0.02, y: 0.5 })).toBe('left');
+    expect(deckEntryEdgeSide({ x: 0.98, y: 0.5 })).toBe('right');
+    expect(deckEntryEdgeSide({ x: 1, y: 0.5 })).toBe('right');
   });
 
   it('does not replace the visible trigger with the bottom launch anchor while settings load', () => {
@@ -98,6 +120,7 @@ describe('deck entry settings', () => {
       }),
     ).toEqual({
       showDeckTrigger: true,
+      autoHideAtEdge: true,
       showToolbarBadge: true,
       showDeckTriggerBadge: true,
       autoHideInFullscreen: true,
@@ -171,6 +194,18 @@ describe('deck entry settings', () => {
       hiddenCardIds: ['script-a'],
     };
 
+    expect(
+      applyDeckEntrySettingsMutation(settings, {
+        kind: 'set-edge-auto-hide',
+        enabled: false,
+      }),
+    ).toEqual({ ...settings, autoHideAtEdge: false });
+    expect(
+      applyDeckEntrySettingsMutation(settings, {
+        kind: 'set-edge-auto-hide',
+        enabled: true,
+      }),
+    ).toBe(settings);
     expect(
       applyDeckEntrySettingsMutation(settings, {
         kind: 'set-fullscreen-auto-hide',
@@ -252,7 +287,14 @@ describe('deck entry settings', () => {
     'false',
     null,
     undefined,
-  ])('validates the fullscreen auto-hide mutation value %s', (enabled) => {
+  ])('validates the edge and fullscreen auto-hide mutation value %s', (enabled) => {
+    expect(
+      isDeckEntrySettingsMessage({
+        channel: DECK_ENTRY_SETTINGS_MESSAGE_CHANNEL,
+        type: DECK_ENTRY_SETTINGS_UPDATE_MESSAGE_TYPE,
+        mutation: { kind: 'set-edge-auto-hide', enabled },
+      }),
+    ).toBe(typeof enabled === 'boolean');
     expect(
       isDeckEntrySettingsMessage({
         channel: DECK_ENTRY_SETTINGS_MESSAGE_CHANNEL,
@@ -320,6 +362,36 @@ describe('deck entry settings', () => {
         viewportHeight: 800,
       }).y,
     ).toBe(147 / 800);
+    expect(
+      normalizedDeckEntryPosition({
+        centerX: 40,
+        centerY: 400,
+        insets: DECK_ENTRY_LAYOUT.drag.insets,
+        viewportWidth: 1_000,
+        viewportHeight: 800,
+        edgeSnap: true,
+      }).x,
+    ).toBe(0);
+    expect(
+      normalizedDeckEntryPosition({
+        centerX: 960,
+        centerY: 400,
+        insets: DECK_ENTRY_LAYOUT.drag.insets,
+        viewportWidth: 1_000,
+        viewportHeight: 800,
+        edgeSnap: true,
+      }).x,
+    ).toBe(1);
+    expect(
+      normalizedDeckEntryPosition({
+        centerX: 400,
+        centerY: 400,
+        insets: DECK_ENTRY_LAYOUT.drag.insets,
+        viewportWidth: 1_000,
+        viewportHeight: 800,
+        edgeSnap: true,
+      }).x,
+    ).toBe(0.4);
   });
 
   it('shares one drag threshold and position update across deck entry hosts', () => {
@@ -405,6 +477,7 @@ describe('deck entry settings', () => {
         type: 'deck-entry-settings-changed',
         settings: {
           showDeckTrigger: true,
+          autoHideAtEdge: true,
           showToolbarBadge: true,
           showDeckTriggerBadge: true,
           autoHideInFullscreen: true,

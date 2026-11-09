@@ -7,6 +7,8 @@ const CORE = {
   buttonWidth: 84,
   buttonHeight: 100,
   logoSize: CARD_COLLECTION_LOGO_DIAMETER,
+  edgePlaqueWidth: 30,
+  edgePlaqueHeight: 100,
 } as const;
 const SPEED = {
   radius: 68,

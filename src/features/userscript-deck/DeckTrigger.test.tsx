@@ -15,6 +15,7 @@ function renderTrigger({
   visibleCount = 4,
   activeCount = visibleCount,
   showDeckTriggerBadge = true,
+  autoHideAtEdge = true,
   autoHideInFullscreen = true,
   receiving = false,
   mediaResourcesCount = 0,
@@ -29,6 +30,7 @@ function renderTrigger({
   visibleCount?: number;
   activeCount?: number;
   showDeckTriggerBadge?: boolean;
+  autoHideAtEdge?: boolean;
   autoHideInFullscreen?: boolean;
   receiving?: boolean;
   mediaResourcesCount?: number;
@@ -49,6 +51,7 @@ function renderTrigger({
       visibleCount={visibleCount}
       activeCount={activeCount}
       showDeckTriggerBadge={showDeckTriggerBadge}
+      autoHideAtEdge={autoHideAtEdge}
       autoHideInFullscreen={autoHideInFullscreen}
       ready={ready}
       hidden={hidden}
@@ -384,5 +387,101 @@ describe('deck trigger and media speed wheel visibility', () => {
     expect(markup).toContain('manager-deck-entry-cluster');
     expect(markup).toContain('class="cat-catch-popup-frame"');
     expect(markup).not.toContain('manager-media-resources-trigger');
+  });
+
+  it('renders right and left edge-docked plaques only when near the edge and omits accessories while docked', () => {
+    const defaultUndocked = renderTrigger({
+      hidden: false,
+      speedWheelVisible: true,
+      mediaResourcesCount: 3,
+      autoHideAtEdge: true,
+      position: null,
+    });
+    const interiorUndocked = renderTrigger({
+      hidden: false,
+      speedWheelVisible: true,
+      mediaResourcesCount: 3,
+      autoHideAtEdge: true,
+      position: { x: 0.45, y: 0.5 },
+    });
+    const rightDocked = renderTrigger({
+      hidden: false,
+      speedWheelVisible: true,
+      mediaResourcesCount: 3,
+      autoHideAtEdge: true,
+      position: { x: 1, y: 0.5 },
+    });
+    const leftDocked = renderTrigger({
+      hidden: false,
+      speedWheelVisible: true,
+      mediaResourcesCount: 3,
+      autoHideAtEdge: true,
+      position: { x: 0, y: 0.5 },
+    });
+    const disabledAtEdge = renderTrigger({
+      hidden: false,
+      speedWheelVisible: true,
+      mediaResourcesCount: 3,
+      autoHideAtEdge: false,
+      position: { x: 0, y: 0.5 },
+    });
+
+    expect(defaultUndocked).toContain('data-edge-dock="off"');
+    expect(defaultUndocked).not.toContain('manager-deck-trigger__edge-plaque');
+    expect(defaultUndocked).toContain('manager-media-speed-radial');
+    expect(defaultUndocked).toContain('manager-media-resources-trigger');
+
+    expect(interiorUndocked).toContain('data-edge-dock="off"');
+    expect(interiorUndocked).not.toContain('manager-deck-trigger__edge-plaque');
+    expect(interiorUndocked).toContain('manager-media-speed-radial');
+    expect(interiorUndocked).toContain('manager-media-resources-trigger');
+
+    expect(rightDocked).toContain('data-edge-dock="right"');
+    expect(rightDocked).toContain('data-edge-expanded="false"');
+    expect(rightDocked).toContain(
+      'userscript-deck/visual/action-icons/card-master-edge-right.webp',
+    );
+    expect(rightDocked).toContain('manager-deck-trigger__badge');
+    expect(rightDocked).not.toContain('manager-media-speed-radial');
+    expect(rightDocked).not.toContain('manager-media-resources-trigger');
+
+    expect(leftDocked).toContain('data-edge-dock="left"');
+    expect(leftDocked).toContain('data-edge-expanded="false"');
+    expect(leftDocked).toContain(
+      'userscript-deck/visual/action-icons/card-master-edge-left.webp',
+    );
+    expect(leftDocked).toContain('manager-deck-trigger__badge');
+    expect(leftDocked).not.toContain('manager-media-speed-radial');
+    expect(leftDocked).not.toContain('manager-media-resources-trigger');
+
+    expect(disabledAtEdge).toContain('data-edge-dock="off"');
+    expect(disabledAtEdge).not.toContain('manager-deck-trigger__edge-plaque');
+    expect(disabledAtEdge).toContain('manager-media-speed-radial');
+    expect(disabledAtEdge).toContain('manager-media-resources-trigger');
+  });
+
+  it('expands the edge-docked entry into the normal style with accessories during import reception or active popups', () => {
+    const receivingMarkup = renderTrigger({
+      hidden: false,
+      speedWheelVisible: false,
+      autoHideAtEdge: true,
+      position: { x: 1, y: 0.5 },
+      receiving: true,
+    });
+    const popupMarkup = renderTrigger({
+      hidden: false,
+      speedWheelVisible: true,
+      autoHideAtEdge: true,
+      position: { x: 1, y: 0.5 },
+      mediaResourcesCount: 2,
+      popupOpen: true,
+    });
+
+    expect(receivingMarkup).toContain('data-edge-dock="right"');
+    expect(receivingMarkup).toContain('data-edge-expanded="true"');
+    expect(popupMarkup).toContain('data-edge-dock="right"');
+    expect(popupMarkup).toContain('data-edge-expanded="true"');
+    expect(popupMarkup).toContain('manager-media-speed-radial');
+    expect(popupMarkup).toContain('manager-media-resources-trigger');
   });
 });

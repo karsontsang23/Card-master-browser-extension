@@ -8,7 +8,7 @@ import type { UserscriptSettingsController } from '../../userscript/application/
 import type { DeckEntryController } from './deck-entry';
 import { SettingsBoard } from './SettingsBoard';
 
-function renderSettings(autoHideInFullscreen: boolean) {
+function renderSettings(autoHideInFullscreen: boolean, autoHideAtEdge = true) {
   return renderToStaticMarkup(
     <SettingsBoard
       repository={{} as ScriptRepository}
@@ -21,6 +21,7 @@ function renderSettings(autoHideInFullscreen: boolean) {
       }
       deckEntrySettings={{
         showDeckTrigger: true,
+        autoHideAtEdge,
         showToolbarBadge: true,
         showDeckTriggerBadge: true,
         autoHideInFullscreen,
@@ -46,11 +47,15 @@ describe('SettingsBoard', () => {
     expect(markup).not.toContain('界面外观');
     expect(markup).not.toContain('跟随系统');
     expect(markup).toContain('显示页面牌库入口');
+    expect(markup).toContain('贴边自动收起浮动入口');
     expect(markup).toContain('全屏时自动隐藏浮动入口');
     expect(markup).toMatch(
       new RegExp(
         `全屏时自动隐藏浮动入口</strong>[^<]*(?:<small>[^<]*</small>)?</span><input[^>]*aria-checked="${autoHideInFullscreen}"`,
       ),
+    );
+    expect(renderSettings(true, false)).toMatch(
+      /贴边自动收起浮动入口<\/strong>[^<]*(?:<small>[^<]*<\/small>)?<\/span><input[^>]*aria-checked="false"/u,
     );
     expect(markup).toContain('网页与新标签页显示可拖动的卡牌大师 Logo');
     expect(markup).not.toContain('显示右下角卡牌入口');
@@ -123,10 +128,12 @@ describe('SettingsBoard', () => {
     setLanguagePreference('zh-TW');
     const markup = renderSettings(true);
     expect(markup).toContain('介面語言');
+    expect(markup).toContain('貼邊自動收起浮動入口');
     expect(markup).toContain('全螢幕時自動隱藏浮動入口');
     expect(markup).toContain('顯示頁面牌庫入口');
     expect(markup).not.toContain('显示页面牌库入口');
     setLanguagePreference('zh-CN');
+    expect(renderSettings(true)).toContain('贴边自动收起浮动入口');
     expect(renderSettings(true)).toContain('全屏时自动隐藏浮动入口');
   });
 });

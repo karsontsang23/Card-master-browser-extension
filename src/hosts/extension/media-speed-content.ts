@@ -212,8 +212,14 @@ function mountMediaSpeedContent(api: ExtensionApi) {
     currentSelection = response.selection;
     currentActiveOnPage = response.snapshot.activeOnPage;
     publishProxyState();
-    if (window.top === window) publishPageSnapshot(response.snapshot);
-    else publishLocalSnapshot();
+    if (videoCount >= 0 || audioCount >= 0) {
+      publishLocalSnapshot();
+    } else if (window.top === window) {
+      publishPageSnapshot(response.snapshot);
+    } else {
+      publishLocalSnapshot();
+    }
+    handleProxyReport();
   };
 
   const handleProxyReport = () => {

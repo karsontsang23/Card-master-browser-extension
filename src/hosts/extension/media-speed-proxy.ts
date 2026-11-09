@@ -231,6 +231,7 @@ function mountMediaSpeedProxy(): ProxyRuntime {
       if (!root) return;
       const counts = currentMediaCounts();
       if (
+        root.dataset[MEDIA_SPEED_PROXY_REPORT_DATASET] &&
         counts.videoCount === publishedVideoCount &&
         counts.audioCount === publishedAudioCount
       ) {
@@ -415,6 +416,7 @@ function mountMediaSpeedProxy(): ProxyRuntime {
       return;
     }
     startTracking();
+    for (const root of roots) scanRoot(root);
     if (shouldResetRetries) {
       clearLockRetries();
     }

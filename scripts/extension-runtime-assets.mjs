@@ -86,6 +86,10 @@ const preinstalledCardAssets = readdirSync(
 
 const defaultExtensionIcon =
   'userscript-deck/visual/action-icons/card-master-logo.png';
+const edgeDockIcons = [
+  'userscript-deck/visual/action-icons/card-master-edge-left.webp',
+  'userscript-deck/visual/action-icons/card-master-edge-right.webp',
+];
 
 const contentBlockingVfxPattern =
   /^(?:combo-kill-glyph|(?:energy|sword)-slash-\d{2})\.webm$/;
@@ -227,6 +231,7 @@ export function extensionRuntimeAssetsFor(target) {
     ...preinstalledCardAssets,
     'userscript-deck/card-art/system-cards/new-tab.webp',
     defaultExtensionIcon,
+    ...edgeDockIcons,
     ...contentBlockingVfx(target === 'safari' ? 'mov' : 'webm'),
     ...mediaSpeedProjectileVfx,
     ...mediaSpeedBorderVfx,

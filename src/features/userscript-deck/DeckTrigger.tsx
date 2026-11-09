@@ -17,11 +17,12 @@ import type {
   MediaSpeedWheelItem,
 } from '../../media-speed/domain/types';
 import type { ManagerMode } from '../manager-interaction/state';
-import { DeckEntryLogo } from './DeckEntryLogo';
-import type { DeckEntryPosition } from './deck-entry';
+import { cardMasterEdgePlaqueUrl, DeckEntryLogo } from './DeckEntryLogo';
+import { type DeckEntryPosition, deckEntryEdgeSide } from './deck-entry';
 import { deckEntryBadgeCompact, deckEntryBadgeText } from './deck-entry-badge';
 import { DECK_ENTRY_LAYOUT, resolveDeckEntryInsets } from './deck-entry-layout';
 import {
+  commitDeckEntryDragSession,
   createDeckEntryDragSession,
   type DeckEntryDragSession,
   updateDeckEntryDragSession,
@@ -44,6 +45,8 @@ type DeckTriggerStyle = CSSProperties & {
   '--manager-deck-entry-button-width': string;
   '--manager-deck-entry-button-height': string;
   '--manager-deck-entry-logo-size': string;
+  '--manager-deck-entry-edge-width': string;
+  '--manager-deck-entry-edge-height': string;
   '--manager-media-speed-radius': string;
   '--manager-media-speed-option-width': string;
   '--manager-media-speed-option-height': string;
@@ -52,6 +55,7 @@ type DeckTriggerStyle = CSSProperties & {
   '--manager-media-speed-option-emphasis-scale': string;
   '--manager-media-resources-size': string;
   '--manager-media-resources-combined-offset': string;
+  '--manager-deck-entry-drag-offset-x'?: string;
   '--manager-deck-entry-x'?: string;
   '--manager-deck-entry-y'?: string;
 };
@@ -59,6 +63,7 @@ type DeckTriggerStyle = CSSProperties & {
 const SPEED_WHEEL_AUTO_COLLAPSE_MS = 3200;
 const SPEED_WHEEL_LEAVE_COLLAPSE_MS = 360;
 const SPEED_WHEEL_HIDE_GRACE_MS = 640;
+const EDGE_DOCK_LEAVE_COLLAPSE_MS = 280;
 const MEDIA_RESOURCES_LOGO_URL = projectAssetUrl(
   'userscript-deck/visual/integrations/media-resources-sheep.png',
 );
@@ -82,6 +87,7 @@ export function DeckTrigger({
   showDeckTriggerBadge,
   ready,
   hidden,
+  autoHideAtEdge = true,
   autoHideInFullscreen,
   receiving = false,
   position,
@@ -107,6 +113,7 @@ export function DeckTrigger({
   showDeckTriggerBadge: boolean;
   ready: boolean;
   hidden: boolean;
+  autoHideAtEdge?: boolean;
   autoHideInFullscreen: boolean;
   receiving?: boolean;
   position: DeckEntryPosition | null;
@@ -134,13 +141,33 @@ export function DeckTrigger({
   const suppressClickRef = useRef(false);
   const radialCollapseTimerRef = useRef<number | null>(null);
   const radialHideTimerRef = useRef<number | null>(null);
+  const edgeCollapseTimerRef = useRef<number | null>(null);
+  const ignoreEdgeHoverAfterDragRef = useRef(false);
   const ignoreRadialEntryRef = useRef(false);
   const dragCallbacksRef = useRef({ onPositionChange, onPositionCommit });
   dragCallbacksRef.current = { onPositionChange, onPositionCommit };
   const [dragging, setDragging] = useState(false);
-  const radialSignal = speedWheelVisible && mode === 'closed';
+  const [dragPosition, setDragPosition] = useState<DeckEntryPosition | null>(
+    null,
+  );
+  const [dragOffsetX, setDragOffsetX] = useState(0);
+  const [edgeHovered, setEdgeHovered] = useState(false);
+  const activePosition = dragging && dragPosition ? dragPosition : position;
+  const edgeDockSide =
+    autoHideAtEdge && !hidden && !dragging
+      ? deckEntryEdgeSide(activePosition)
+      : null;
+  const edgeExpanded =
+    edgeDockSide === null ||
+    edgeHovered ||
+    dragging ||
+    receiving ||
+    Boolean(mediaResourcesPopup) ||
+    mode !== 'closed';
+  const radialSignal = edgeExpanded && speedWheelVisible && mode === 'closed';
   const [radialRetained, setRadialRetained] = useState(radialSignal);
-  const radialRequested = mode === 'closed' && (radialSignal || radialRetained);
+  const radialRequested =
+    edgeExpanded && mode === 'closed' && (radialSignal || radialRetained);
   const [radialExpanded, setRadialExpanded] = useState(
     () =>
       radialRequested &&
@@ -149,7 +176,7 @@ export function DeckTrigger({
       document.hasFocus(),
   );
   const [radialMounted, setRadialMounted] = useState(radialRequested);
-  const radialVisible = radialMounted || radialRequested;
+  const radialVisible = edgeExpanded && (radialMounted || radialRequested);
   const presentation = deckEntryPresentation({
     mode,
     ready,
@@ -157,6 +184,7 @@ export function DeckTrigger({
     receiving,
     radialVisible,
     mediaResourcesAvailable:
+      edgeExpanded &&
       showMediaResourcesTrigger &&
       mediaResourcesCount > 0 &&
       onOpenMediaResources !== undefined,
@@ -188,6 +216,43 @@ export function DeckTrigger({
     window.clearTimeout(radialCollapseTimerRef.current);
     radialCollapseTimerRef.current = null;
   }, []);
+
+  const clearEdgeCollapseTimer = useCallback(() => {
+    if (edgeCollapseTimerRef.current === null) return;
+    window.clearTimeout(edgeCollapseTimerRef.current);
+    edgeCollapseTimerRef.current = null;
+  }, []);
+
+  const expandEdgeDock = useCallback(() => {
+    if (
+      !edgeDockSide ||
+      document.hidden ||
+      ignoreEdgeHoverAfterDragRef.current
+    ) {
+      return;
+    }
+    clearEdgeCollapseTimer();
+    setEdgeHovered(true);
+  }, [clearEdgeCollapseTimer, edgeDockSide]);
+
+  const scheduleEdgeCollapse = useCallback(
+    (delay: number) => {
+      clearEdgeCollapseTimer();
+      if (!edgeDockSide) return;
+      edgeCollapseTimerRef.current = window.setTimeout(() => {
+        edgeCollapseTimerRef.current = null;
+        setEdgeHovered(false);
+      }, delay);
+    },
+    [clearEdgeCollapseTimer, edgeDockSide],
+  );
+
+  useEffect(() => {
+    if (edgeDockSide === null) {
+      clearEdgeCollapseTimer();
+    }
+    return clearEdgeCollapseTimer;
+  }, [clearEdgeCollapseTimer, edgeDockSide]);
 
   useEffect(() => {
     if (radialHideTimerRef.current !== null) {
@@ -229,8 +294,20 @@ export function DeckTrigger({
     clearRadialCollapseTimer();
     setRadialExpanded(true);
   }, [clearRadialCollapseTimer, radialRequested]);
-  const gamepadInteractionRef = useRef({ expandRadial, onHover, onLeave });
-  gamepadInteractionRef.current = { expandRadial, onHover, onLeave };
+  const gamepadInteractionRef = useRef({
+    expandEdgeDock,
+    scheduleEdgeCollapse,
+    expandRadial,
+    onHover,
+    onLeave,
+  });
+  gamepadInteractionRef.current = {
+    expandEdgeDock,
+    scheduleEdgeCollapse,
+    expandRadial,
+    onHover,
+    onLeave,
+  };
 
   useEffect(() => {
     if (!radialRequested) {
@@ -251,8 +328,11 @@ export function DeckTrigger({
   useEffect(() => {
     const deactivate = () => {
       ignoreRadialEntryRef.current = true;
+      ignoreEdgeHoverAfterDragRef.current = false;
       clearRadialCollapseTimer();
+      clearEdgeCollapseTimer();
       setRadialExpanded(false);
+      setEdgeHovered(false);
     };
     const handleVisibilityChange = () => {
       if (document.hidden) deactivate();
@@ -263,7 +343,7 @@ export function DeckTrigger({
       window.removeEventListener('blur', deactivate);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [clearRadialCollapseTimer]);
+  }, [clearEdgeCollapseTimer, clearRadialCollapseTimer]);
 
   useEffect(() => {
     const button = buttonRef.current;
@@ -272,9 +352,14 @@ export function DeckTrigger({
       element: button,
       onHoverChange(hovered, point) {
         if (hovered && point) {
+          ignoreEdgeHoverAfterDragRef.current = false;
+          gamepadInteractionRef.current.expandEdgeDock();
           gamepadInteractionRef.current.onHover(point.x);
           gamepadInteractionRef.current.expandRadial();
         } else {
+          gamepadInteractionRef.current.scheduleEdgeCollapse(
+            EDGE_DOCK_LEAVE_COLLAPSE_MS,
+          );
           gamepadInteractionRef.current.onLeave();
         }
       },
@@ -301,6 +386,18 @@ export function DeckTrigger({
       viewportHeight: window.innerHeight,
     });
     if (!update) return;
+    const rawCenterX = update.position.x * window.innerWidth;
+    const minClusterX = Math.min(window.innerWidth / 2, session.insets.left);
+    const maxClusterX = Math.max(
+      minClusterX,
+      window.innerWidth - Math.min(window.innerWidth / 2, session.insets.right),
+    );
+    const clusterCenterX = Math.min(
+      maxClusterX,
+      Math.max(minClusterX, rawCenterX),
+    );
+    setDragOffsetX(rawCenterX - clusterCenterX);
+    setDragPosition(update.position);
     if (update.started) setDragging(true);
     event.preventDefault();
     dragCallbacksRef.current.onPositionChange(update.position);
@@ -313,19 +410,66 @@ export function DeckTrigger({
       updateDragPosition(event);
       dragSessionRef.current = null;
       const button = buttonRef.current;
-      if (button?.hasPointerCapture(event.pointerId)) {
-        button.releasePointerCapture(event.pointerId);
+      if (!session.moved) {
+        if (button?.hasPointerCapture(event.pointerId)) {
+          button.releasePointerCapture(event.pointerId);
+        }
+        return;
       }
-      if (!session.moved) return;
+      const committedPosition = commitDeckEntryDragSession(session, {
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      });
       suppressClickRef.current = true;
       window.setTimeout(() => {
         suppressClickRef.current = false;
       }, 0);
+      clearEdgeCollapseTimer();
+      ignoreEdgeHoverAfterDragRef.current =
+        deckEntryEdgeSide(committedPosition) !== null;
+      if (button?.hasPointerCapture(event.pointerId)) {
+        button.releasePointerCapture(event.pointerId);
+      }
+      setEdgeHovered(false);
+      setDragOffsetX(0);
+      setDragPosition(null);
       setDragging(false);
-      dragCallbacksRef.current.onPositionCommit(session.position);
+      dragCallbacksRef.current.onPositionCommit(committedPosition);
     },
-    [updateDragPosition],
+    [clearEdgeCollapseTimer, updateDragPosition],
   );
+
+  useEffect(() => {
+    const clearPostDragEdgeLock = (event: PointerEvent) => {
+      if (!ignoreEdgeHoverAfterDragRef.current || dragSessionRef.current) {
+        return;
+      }
+      const side = edgeDockSide;
+      if (!side) {
+        ignoreEdgeHoverAfterDragRef.current = false;
+        return;
+      }
+      const horizontalClearance = DECK_ENTRY_LAYOUT.dock.width / 2 + 12;
+      const leftEdgeZone =
+        side === 'right'
+          ? event.clientX < window.innerWidth - horizontalClearance
+          : event.clientX > horizontalClearance;
+      const button = buttonRef.current;
+      const bounds = button?.getBoundingClientRect();
+      const leftVerticalZone = bounds
+        ? event.clientY < bounds.top - 24 || event.clientY > bounds.bottom + 24
+        : false;
+      if (leftEdgeZone || leftVerticalZone) {
+        ignoreEdgeHoverAfterDragRef.current = false;
+      }
+    };
+    window.addEventListener('pointermove', clearPostDragEdgeLock, true);
+    return () => {
+      window.removeEventListener('pointermove', clearPostDragEdgeLock, true);
+    };
+  }, [edgeDockSide]);
 
   useEffect(() => {
     window.addEventListener('pointermove', updateDragPosition, true);
@@ -343,7 +487,11 @@ export function DeckTrigger({
     if (!presentation.canDrag || event.button !== 0 || !event.isPrimary) {
       return;
     }
-    const bounds = event.currentTarget.getBoundingClientRect();
+    const anchor =
+      event.currentTarget.querySelector?.<HTMLElement>(
+        '.manager-deck-trigger__logo-anchor',
+      ) ?? event.currentTarget;
+    const bounds = anchor.getBoundingClientRect();
     const session = createDeckEntryDragSession({
       pointerId: event.pointerId,
       pointerX: event.clientX,
@@ -354,6 +502,7 @@ export function DeckTrigger({
       viewportHeight: window.innerHeight,
       position,
       insets: entryInsets,
+      edgeSnap: autoHideAtEdge,
     });
     dragSessionRef.current = session;
     try {
@@ -375,6 +524,8 @@ export function DeckTrigger({
     '--manager-deck-entry-button-width': `${DECK_ENTRY_LAYOUT.core.buttonWidth}px`,
     '--manager-deck-entry-button-height': `${DECK_ENTRY_LAYOUT.core.buttonHeight}px`,
     '--manager-deck-entry-logo-size': `${DECK_ENTRY_LAYOUT.core.logoSize}px`,
+    '--manager-deck-entry-edge-width': `${DECK_ENTRY_LAYOUT.core.edgePlaqueWidth}px`,
+    '--manager-deck-entry-edge-height': `${DECK_ENTRY_LAYOUT.core.edgePlaqueHeight}px`,
     '--manager-media-speed-radius': `${DECK_ENTRY_LAYOUT.speed.radius}px`,
     '--manager-media-speed-option-width': `${DECK_ENTRY_LAYOUT.speed.optionWidth}px`,
     '--manager-media-speed-option-height': `${DECK_ENTRY_LAYOUT.speed.optionHeight}px`,
@@ -383,18 +534,25 @@ export function DeckTrigger({
     '--manager-media-speed-option-emphasis-scale': `${DECK_ENTRY_LAYOUT.speed.optionEmphasisScale}`,
     '--manager-media-resources-size': `${DECK_ENTRY_LAYOUT.resources.size}px`,
     '--manager-media-resources-combined-offset': `${DECK_ENTRY_LAYOUT.resources.combinedOffset}px`,
-    ...(position
+    ...(dragging
       ? {
-          '--manager-deck-entry-x': `${position.x * 100}%`,
-          '--manager-deck-entry-y': `${position.y * 100}%`,
+          '--manager-deck-entry-drag-offset-x': `${dragOffsetX}px`,
+        }
+      : {}),
+    ...(activePosition
+      ? {
+          '--manager-deck-entry-x': `${activePosition.x * 100}%`,
+          '--manager-deck-entry-y': `${activePosition.y * 100}%`,
         }
       : {}),
   };
 
   const cluster = (
     <div
-      className={`manager-deck-entry-cluster${radialVisible ? ' has-speed-radial' : ''}${mediaResourcesVisible ? ' has-media-resources-trigger' : ''}${hidden ? ' has-hidden-trigger' : ''}${position ? ' has-custom-position' : ''}${dragging ? ' is-dragging' : ''}`}
+      className={`manager-deck-entry-cluster${radialVisible ? ' has-speed-radial' : ''}${mediaResourcesVisible ? ' has-media-resources-trigger' : ''}${hidden ? ' has-hidden-trigger' : ''}${activePosition ? ' has-custom-position' : ''}${dragging ? ' is-dragging' : ''}`}
       data-core-state={presentation.coreState}
+      data-edge-dock={edgeDockSide ?? 'off'}
+      data-edge-expanded={edgeDockSide ? edgeExpanded : undefined}
       data-fullscreen-auto-hide={autoHideInFullscreen}
       data-accessories={presentation.accessoryState}
       data-media-resources-placement={
@@ -408,6 +566,9 @@ export function DeckTrigger({
       }
       style={positionStyle}
       onPointerEnter={(event) => {
+        if (edgeExpanded) {
+          clearEdgeCollapseTimer();
+        }
         if (!speedWheelInteractionTarget(event.target)) return;
         if (ignoreRadialEntryRef.current) return;
         expandRadial();
@@ -426,6 +587,9 @@ export function DeckTrigger({
         expandRadial();
       }}
       onPointerLeave={() => {
+        if (!dragging) {
+          scheduleEdgeCollapse(EDGE_DOCK_LEAVE_COLLAPSE_MS);
+        }
         if (!radialRequested || dragging) return;
         if (document.hidden || !document.hasFocus()) return;
         ignoreRadialEntryRef.current = false;
@@ -495,7 +659,13 @@ export function DeckTrigger({
         aria-hidden={presentation.coreVisible ? undefined : true}
         tabIndex={presentation.coreVisible ? undefined : -1}
         onPointerEnter={(event) => {
+          expandEdgeDock();
           onHover(event.clientX);
+        }}
+        onPointerMove={() => {
+          if (!edgeExpanded) {
+            expandEdgeDock();
+          }
         }}
         onPointerLeave={onLeave}
         onPointerDown={beginDrag}
@@ -523,6 +693,19 @@ export function DeckTrigger({
                 : t('cm_deck_trigger_text_6', [String(visibleCount)])
         }
       >
+        {edgeDockSide && (
+          <span
+            className="manager-deck-trigger__edge-anchor"
+            aria-hidden="true"
+          >
+            <img
+              className="manager-deck-trigger__edge-plaque"
+              src={cardMasterEdgePlaqueUrl(edgeDockSide)}
+              alt=""
+              draggable={false}
+            />
+          </span>
+        )}
         <span className="manager-deck-trigger__logo-anchor">
           <DeckEntryLogo className="manager-deck-trigger__logo" />
           {showDeckTriggerBadge && ready && (

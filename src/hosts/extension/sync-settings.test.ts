@@ -12,8 +12,12 @@ import {
 } from './sync-settings';
 
 describe('portable configuration trust boundaries', () => {
-  it('persists fullscreen opt-out through sync and restores legacy records with auto-hide enabled', async () => {
-    const { autoHideInFullscreen: _default, ...legacy } = {
+  it('persists edge and fullscreen opt-outs through sync and restores legacy records with auto-hide enabled', async () => {
+    const {
+      autoHideAtEdge: _edgeDefault,
+      autoHideInFullscreen: _default,
+      ...legacy
+    } = {
       ...DEFAULT_DECK_ENTRY_SETTINGS,
       hiddenCardIds: [],
     };
@@ -37,29 +41,42 @@ describe('portable configuration trust boundaries', () => {
     expect(adapter.key).toBe('deck');
     expect(() => adapter.validate(legacy)).not.toThrow();
     expect(() =>
+      adapter.validate({ ...legacy, autoHideAtEdge: 'false' }),
+    ).toThrow();
+    expect(() =>
       adapter.validate({ ...legacy, autoHideInFullscreen: 'false' }),
     ).toThrow();
     expect(() => adapter.validate({ ...legacy, unknown: true })).toThrow();
 
     await adapter.apply(
-      { ...legacy, autoHideInFullscreen: false },
+      { ...legacy, autoHideAtEdge: false, autoHideInFullscreen: false },
       await adapter.read(),
     );
+    expect(stored.autoHideAtEdge).toBe(false);
     expect(stored.autoHideInFullscreen).toBe(false);
     expect(sendMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        settings: expect.objectContaining({ autoHideInFullscreen: false }),
+        settings: expect.objectContaining({
+          autoHideAtEdge: false,
+          autoHideInFullscreen: false,
+        }),
       }),
     );
     const reloaded = syncSettings(services)[0];
     expect(await reloaded.read()).toEqual({
       ...legacy,
+      autoHideAtEdge: false,
       autoHideInFullscreen: false,
     });
     const snapshot = JSON.parse(JSON.stringify(await reloaded.read()));
     await reloaded.apply(legacy, await reloaded.read());
-    expect(stored).toEqual({ ...legacy, autoHideInFullscreen: true });
+    expect(stored).toEqual({
+      ...legacy,
+      autoHideAtEdge: true,
+      autoHideInFullscreen: true,
+    });
     await reloaded.apply(snapshot, await reloaded.read());
+    expect(stored.autoHideAtEdge).toBe(false);
     expect(stored.autoHideInFullscreen).toBe(false);
 
     const expected = await reloaded.read();

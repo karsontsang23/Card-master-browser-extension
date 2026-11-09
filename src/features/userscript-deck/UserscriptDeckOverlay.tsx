@@ -1024,6 +1024,10 @@ export function UserscriptDeckOverlay({ host }: { host: UserscriptDeckHost }) {
       mode === 'reordering' ||
       mode === 'dragging'
     ) {
+      if (hasInteractionOwner()) {
+        setRequestedVisibility(null);
+        return;
+      }
       collectCardSpread();
     }
   }, [
@@ -1034,6 +1038,7 @@ export function UserscriptDeckOverlay({ host }: { host: UserscriptDeckHost }) {
     dealCardSpread,
     deckEntrySettings,
     deckLaunchReady,
+    hasInteractionOwner,
     libraryReady,
     mode,
     pageElementInteraction,
@@ -1434,6 +1439,7 @@ export function UserscriptDeckOverlay({ host }: { host: UserscriptDeckHost }) {
         visibleCount={visibleCardCount}
         activeCount={activeCardCount}
         showDeckTriggerBadge={resolvedDeckEntrySettings.showDeckTriggerBadge}
+        autoHideAtEdge={resolvedDeckEntrySettings.autoHideAtEdge}
         autoHideInFullscreen={resolvedDeckEntrySettings.autoHideInFullscreen}
         ready={libraryReady}
         hidden={

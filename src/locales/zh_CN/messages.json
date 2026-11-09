@@ -6056,6 +6056,14 @@
     "message": "开启后在网页与新标签页显示可拖动的卡牌大师 Logo；点击可展开牌阵。关闭后仍可使用扩展栏图标或快捷键。",
     "description": "src/features/userscript-deck/SettingsBoard.tsx；description"
   },
+  "cm_settings_board_edge_auto_hide_label": {
+    "message": "贴边自动收起浮动入口",
+    "description": "src/features/userscript-deck/SettingsBoard.tsx；label"
+  },
+  "cm_settings_board_edge_auto_hide_description": {
+    "message": "开启后，将页面入口拖近屏幕左、右边缘时自动吸附为竖向铭牌，鼠标移入时展开为圆形图标。",
+    "description": "src/features/userscript-deck/SettingsBoard.tsx；description"
+  },
   "cm_settings_board_label_104": {
     "message": "全屏时自动隐藏浮动入口",
     "description": "src/features/userscript-deck/SettingsBoard.tsx；label"

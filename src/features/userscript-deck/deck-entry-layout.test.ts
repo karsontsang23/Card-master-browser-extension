@@ -175,4 +175,19 @@ describe('deck entry layout', () => {
     expect(stageCss).not.toContain('.manager-deck-trigger__launch-point');
     expect(stageCss).not.toContain('.manager-deck-trigger__card-footprint');
   });
+
+  it('keeps the edge-docked plaque dimensions proportional to the 144x480 runtime assets', () => {
+    expect(DECK_ENTRY_LAYOUT.core.edgePlaqueWidth).toBe(30);
+    expect(DECK_ENTRY_LAYOUT.core.edgePlaqueHeight).toBe(100);
+    expect(
+      DECK_ENTRY_LAYOUT.core.edgePlaqueWidth /
+        DECK_ENTRY_LAYOUT.core.edgePlaqueHeight,
+    ).toBeCloseTo(144 / 480, 5);
+    expect(stageCss).toContain(
+      '.manager-deck-entry-cluster[data-edge-dock="right"]:not(.is-dragging)',
+    );
+    expect(stageCss).toContain(
+      '.manager-deck-entry-cluster[data-edge-dock="left"]:not(.is-dragging)',
+    );
+  });
 });

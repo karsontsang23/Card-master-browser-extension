@@ -16,6 +16,7 @@ import {
   type DeckEntrySettingsResponse,
   type DeckVisibility,
   type DeckVisibilityRequest,
+  deckEntryEdgeSide,
   isDeckCreationPreviewMessage,
   isDeckEntrySettingsChangedMessage,
   isDeckVisibilityRequestMessage,
@@ -26,6 +27,7 @@ import {
 } from '../../features/userscript-deck/deck-entry-badge';
 import { DECK_ENTRY_LAYOUT } from '../../features/userscript-deck/deck-entry-layout';
 import {
+  commitDeckEntryDragSession,
   createDeckEntryDragSession,
   type DeckEntryDragSession,
   updateDeckEntryDragSession,
@@ -82,6 +84,11 @@ const HOST_ID = 'card-master-host';
 const HEAVY_HOST_ID = 'card-master-heavy-host';
 const CARD_MASTER_LOGO_PATH =
   'project-assets/userscript-deck/visual/action-icons/card-master-logo.png';
+const CARD_MASTER_EDGE_LEFT_PATH =
+  'project-assets/userscript-deck/visual/action-icons/card-master-edge-left.webp';
+const CARD_MASTER_EDGE_RIGHT_PATH =
+  'project-assets/userscript-deck/visual/action-icons/card-master-edge-right.webp';
+const EDGE_DOCK_LEAVE_COLLAPSE_MS = 280;
 type PageAudio = ReturnType<typeof createExtensionPageAudioDirector>;
 
 function lightStyles(pointerCursorUrl: string) {
@@ -101,6 +108,8 @@ function lightStyles(pointerCursorUrl: string) {
       --deck-entry-height: ${core.buttonHeight}px;
       --deck-entry-half-width: ${core.buttonWidth / 2}px;
       --deck-entry-half-height: ${core.buttonHeight / 2}px;
+      --deck-entry-edge-width: ${core.edgePlaqueWidth}px;
+      --deck-entry-edge-height: ${core.edgePlaqueHeight}px;
       --deck-entry-anchor-x: ${dock.defaultCenterOffset}px;
       --deck-entry-anchor-y: ${dock.defaultCenterOffset}px;
       --deck-entry-left-inset: ${drag.insets.left}px;
@@ -144,6 +153,33 @@ function lightStyles(pointerCursorUrl: string) {
       width: ${core.logoSize}px;
       height: ${core.logoSize}px;
       translate: -50% -50%;
+    }
+    .edge-anchor {
+      position: absolute;
+      z-index: 1;
+      top: 50%;
+      left: 50%;
+      width: var(--deck-entry-edge-width);
+      height: var(--deck-entry-edge-height);
+      opacity: 0;
+      scale: 0.9;
+      translate: -50% -50%;
+      pointer-events: none;
+      transition:
+        opacity 240ms ease,
+        scale 260ms cubic-bezier(0.16, 0.84, 0.22, 1);
+    }
+    .edge-plaque {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+      filter:
+        drop-shadow(0 4px 10px rgb(0 0 0 / 0.44))
+        drop-shadow(0 0 10px rgb(225 181 77 / 0.18));
     }
     .logo {
       display: block;
@@ -207,6 +243,76 @@ function lightStyles(pointerCursorUrl: string) {
     }
     .badge[data-compact="true"] {
       font-size: 10px;
+    }
+    .entry.has-custom-position.is-dragging {
+      left: clamp(
+        ${core.logoSize / 2}px,
+        var(--deck-entry-x),
+        calc(100% - ${core.logoSize / 2}px)
+      );
+    }
+    .entry[data-edge-dock="right"]:not(.is-dragging) {
+      right: calc(var(--deck-entry-right-inset) - var(--deck-entry-half-width));
+      left: auto;
+    }
+    .entry[data-edge-dock="left"]:not(.is-dragging) {
+      right: auto;
+      left: calc(var(--deck-entry-left-inset) - var(--deck-entry-half-width));
+    }
+    .entry.has-custom-position[data-edge-dock="right"]:not(.is-dragging),
+    .entry.has-custom-position[data-edge-dock="left"]:not(.is-dragging) {
+      translate: 0 -50%;
+    }
+    .entry[data-edge-dock="right"][data-edge-expanded="false"]:not(.is-dragging) {
+      right: 0;
+      left: auto;
+      width: var(--deck-entry-edge-width);
+    }
+    .entry[data-edge-dock="left"][data-edge-expanded="false"]:not(.is-dragging) {
+      right: auto;
+      left: 0;
+      width: var(--deck-entry-edge-width);
+    }
+    .entry[data-edge-dock="right"][data-edge-expanded="true"]:not(.is-dragging)::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: calc(var(--deck-entry-half-width) - var(--deck-entry-right-inset));
+      bottom: 0;
+      width: calc(var(--deck-entry-right-inset) - var(--deck-entry-half-width));
+    }
+    .entry[data-edge-dock="left"][data-edge-expanded="true"]:not(.is-dragging)::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--deck-entry-half-width) - var(--deck-entry-left-inset));
+      width: calc(var(--deck-entry-left-inset) - var(--deck-entry-half-width));
+    }
+    .entry[data-edge-dock="right"][data-edge-expanded="false"]:not(.is-dragging) .edge-anchor,
+    .entry[data-edge-dock="left"][data-edge-expanded="false"]:not(.is-dragging) .edge-anchor {
+      opacity: 1;
+      scale: 1;
+    }
+    .entry[data-edge-dock="right"][data-edge-expanded="false"]:not(.is-dragging) .logo,
+    .entry[data-edge-dock="left"][data-edge-expanded="false"]:not(.is-dragging) .logo {
+      opacity: 0;
+      scale: 0.68;
+    }
+    .entry[data-edge-dock="right"][data-edge-expanded="false"]:not(.is-dragging) .logo-anchor,
+    .entry[data-edge-dock="left"][data-edge-expanded="false"]:not(.is-dragging) .logo-anchor {
+      width: 100%;
+      height: 100%;
+    }
+    .entry[data-edge-dock="right"][data-edge-expanded="false"]:not(.is-dragging) .badge {
+      right: auto;
+      bottom: -4px;
+      left: -4px;
+    }
+    .entry[data-edge-dock="left"][data-edge-expanded="false"]:not(.is-dragging) .badge {
+      right: -4px;
+      bottom: -4px;
+      left: auto;
     }
     @media (prefers-reduced-motion: reduce) {
       .logo { transition-duration: 80ms; }
@@ -294,6 +400,7 @@ function mountBootstrap(
   let audio: PageAudio | null = null;
   let currentSettings: DeckEntrySettings = {
     showDeckTrigger: true,
+    autoHideAtEdge: true,
     autoHideInFullscreen: true,
     showToolbarBadge: true,
     showDeckTriggerBadge: true,
@@ -301,6 +408,9 @@ function mountBootstrap(
     hiddenCardIds: [],
   };
   let dragSession: DeckEntryDragSession | null = null;
+  let edgeHovered = false;
+  let ignoreEdgeHoverAfterDrag = false;
+  let edgeCollapseTimer: number | null = null;
   let suppressClick = false;
   let pendingVisibility: DeckVisibility = 'closed';
   let pendingCreationPreview: DeckCreationPreviewRequest | null = null;
@@ -367,6 +477,7 @@ function mountBootstrap(
   disposers.push(removeAudioUnlockListeners);
 
   document.getElementById(HOST_ID)?.remove();
+  document.getElementById(HEAVY_HOST_ID)?.remove();
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.dataset.cardMasterBuildTarget = __EXTENSION_BUILD_TARGET_MARKER__;
@@ -401,19 +512,74 @@ function mountBootstrap(
   logo.alt = '';
   logo.draggable = false;
   logo.setAttribute('aria-hidden', 'true');
+  const edgePlaque = document.createElement('img');
+  edgePlaque.className = 'edge-plaque';
+  edgePlaque.src = api.runtime.getURL(CARD_MASTER_EDGE_RIGHT_PATH);
+  edgePlaque.alt = '';
+  edgePlaque.draggable = false;
+  edgePlaque.setAttribute('aria-hidden', 'true');
+  const edgeAnchor = document.createElement('span');
+  edgeAnchor.className = 'edge-anchor';
+  edgeAnchor.setAttribute('aria-hidden', 'true');
+  edgeAnchor.append(edgePlaque);
   const count = document.createElement('span');
   count.className = 'badge';
   count.setAttribute('aria-hidden', 'true');
   const logoAnchor = document.createElement('span');
   logoAnchor.className = 'logo-anchor';
   logoAnchor.append(logo, count);
-  entry.append(logoAnchor);
+  entry.append(edgeAnchor, logoAnchor);
   shadow.append(style, entry);
   document.documentElement.append(host);
   disposers.push(installFullscreenEntryVisibility(document, host));
 
   const revealLightEntryWhenReady = () => {
     entry.style.visibility = bootstrapReady && settingsReady ? '' : 'hidden';
+  };
+
+  const syncLightEdgeState = () => {
+    const isDragging = entry.classList.contains('is-dragging');
+    const edgeSide =
+      currentSettings.autoHideAtEdge &&
+      currentSettings.showDeckTrigger &&
+      !isDragging
+        ? deckEntryEdgeSide(currentSettings.position)
+        : null;
+    if (edgeSide) {
+      entry.dataset.edgeDock = edgeSide;
+      entry.dataset.edgeExpanded = String(edgeHovered);
+      edgePlaque.src = api.runtime.getURL(
+        edgeSide === 'left'
+          ? CARD_MASTER_EDGE_LEFT_PATH
+          : CARD_MASTER_EDGE_RIGHT_PATH,
+      );
+    } else {
+      entry.dataset.edgeDock = 'off';
+      delete entry.dataset.edgeExpanded;
+    }
+  };
+
+  const clearLightEdgeCollapseTimer = () => {
+    if (edgeCollapseTimer === null) return;
+    window.clearTimeout(edgeCollapseTimer);
+    edgeCollapseTimer = null;
+  };
+  disposers.push(clearLightEdgeCollapseTimer);
+
+  const expandLightEdgeDock = () => {
+    if (ignoreEdgeHoverAfterDrag) return;
+    clearLightEdgeCollapseTimer();
+    edgeHovered = true;
+    syncLightEdgeState();
+  };
+
+  const scheduleLightEdgeCollapse = () => {
+    clearLightEdgeCollapseTimer();
+    edgeCollapseTimer = window.setTimeout(() => {
+      edgeCollapseTimer = null;
+      edgeHovered = false;
+      syncLightEdgeState();
+    }, EDGE_DOCK_LEAVE_COLLAPSE_MS);
   };
 
   const applySettings = (settings: DeckEntrySettings) => {
@@ -437,6 +603,7 @@ function mountBootstrap(
       entry.style.removeProperty('--deck-entry-x');
       entry.style.removeProperty('--deck-entry-y');
     }
+    syncLightEdgeState();
   };
 
   const updateSettings = async (mutation: DeckEntrySettingsMutation) => {
@@ -479,14 +646,27 @@ function mountBootstrap(
       entry.releasePointerCapture(event.pointerId);
     }
     if (!session.moved) return;
+    const committedPosition = commitDeckEntryDragSession(session, {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
     suppressClick = true;
     window.setTimeout(() => {
       suppressClick = false;
     }, 0);
+    clearLightEdgeCollapseTimer();
+    ignoreEdgeHoverAfterDrag = deckEntryEdgeSide(committedPosition) !== null;
+    edgeHovered = false;
     entry.classList.remove('is-dragging');
+    applySettings({
+      ...currentSettings,
+      position: committedPosition,
+    });
     void updateSettings({
       kind: 'set-position',
-      position: session.position,
+      position: committedPosition,
     }).catch((error) => {
       reportExtensionFailure(
         'content-bootstrap',
@@ -663,11 +843,48 @@ function mountBootstrap(
       .catch(() => undefined);
   };
   entry.addEventListener('pointerenter', (event) => {
+    expandLightEdgeDock();
     hoverDeckEntry(event.clientX);
+  });
+  entry.addEventListener('pointermove', () => {
+    if (!edgeHovered) {
+      expandLightEdgeDock();
+    }
+  });
+  entry.addEventListener('pointerleave', () => {
+    if (!dragSession) {
+      scheduleLightEdgeCollapse();
+    }
+  });
+  const clearLightPostDragEdgeLock = (event: PointerEvent) => {
+    if (!ignoreEdgeHoverAfterDrag || dragSession) return;
+    const edgeSide =
+      currentSettings.autoHideAtEdge && currentSettings.showDeckTrigger
+        ? deckEntryEdgeSide(currentSettings.position)
+        : null;
+    if (!edgeSide) {
+      ignoreEdgeHoverAfterDrag = false;
+      return;
+    }
+    const horizontalClearance = DECK_ENTRY_LAYOUT.dock.width / 2 + 12;
+    const leftEdgeZone =
+      edgeSide === 'right'
+        ? event.clientX < window.innerWidth - horizontalClearance
+        : event.clientX > horizontalClearance;
+    const bounds = entry.getBoundingClientRect();
+    const leftVerticalZone =
+      event.clientY < bounds.top - 24 || event.clientY > bounds.bottom + 24;
+    if (leftEdgeZone || leftVerticalZone) {
+      ignoreEdgeHoverAfterDrag = false;
+    }
+  };
+  window.addEventListener('pointermove', clearLightPostDragEdgeLock, true);
+  disposers.push(() => {
+    window.removeEventListener('pointermove', clearLightPostDragEdgeLock, true);
   });
   entry.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || !event.isPrimary) return;
-    const bounds = entry.getBoundingClientRect();
+    const bounds = logoAnchor.getBoundingClientRect();
     const session = createDeckEntryDragSession({
       pointerId: event.pointerId,
       pointerX: event.clientX,
@@ -678,6 +895,7 @@ function mountBootstrap(
       viewportHeight: window.innerHeight,
       position: currentSettings.position,
       insets: DECK_ENTRY_LAYOUT.drag.insets,
+      edgeSnap: currentSettings.autoHideAtEdge,
     });
     dragSession = session;
     try {
@@ -710,20 +928,25 @@ function mountBootstrap(
       enabled: () =>
         entry.style.visibility !== 'hidden' && host.style.display !== 'none',
       onHoverChange(hovered, point) {
-        if (hovered && point) hoverDeckEntry(point.x);
+        if (hovered && point) {
+          expandLightEdgeDock();
+          hoverDeckEntry(point.x);
+        } else {
+          scheduleLightEdgeCollapse();
+        }
       },
     }),
   );
 
-  const routeMessage = (message: unknown) => {
+  const routeMessage = (message: unknown, fromExtensionPageRelay = false) => {
     if (isDeckEntrySettingsChangedMessage(message)) {
       applySettings(message.settings);
     } else if (isDeckVisibilityRequestMessage(message)) {
-      if (visibilityListeners.size === 0) {
+      if (fromExtensionPageRelay || visibilityListeners.size === 0) {
         requestDeckVisibility(message.visibility);
       }
     } else if (isDeckCreationPreviewMessage(message)) {
-      if (creationPreviewListeners.size === 0) {
+      if (fromExtensionPageRelay || creationPreviewListeners.size === 0) {
         requestCreationPreview({
           requestId: message.requestId,
           ...(message.scriptId ? { scriptId: message.scriptId } : {}),
@@ -766,7 +989,7 @@ function mountBootstrap(
   ) => {
     if (isExtensionPageDeckDeliveryMessage(message)) {
       if (message.tabId !== options.extensionPageTabId) return undefined;
-      routeMessage(message.message);
+      routeMessage(message.message, true);
       sendResponse({ handled: true });
       return undefined;
     }

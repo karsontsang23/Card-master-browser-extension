@@ -33,8 +33,11 @@ export type DeckEntryPosition = {
   y: number;
 };
 
+export type DeckEntryEdgeSide = 'left' | 'right';
+
 export type DeckEntrySettings = {
   showDeckTrigger: boolean;
+  autoHideAtEdge: boolean;
   autoHideInFullscreen: boolean;
   showToolbarBadge: boolean;
   showDeckTriggerBadge: boolean;
@@ -46,6 +49,10 @@ export type DeckEntrySettingsMutation =
   | {
       kind: 'set-trigger-visible';
       visible: boolean;
+    }
+  | {
+      kind: 'set-edge-auto-hide';
+      enabled: boolean;
     }
   | {
       kind: 'set-fullscreen-auto-hide';
@@ -78,6 +85,7 @@ export type DeckCreationPreviewRequest = {
 
 export const DEFAULT_DECK_ENTRY_SETTINGS: DeckEntrySettings = {
   showDeckTrigger: true,
+  autoHideAtEdge: true,
   autoHideInFullscreen: true,
   showToolbarBadge: true,
   showDeckTriggerBadge: true,
@@ -90,8 +98,19 @@ export const DEFAULT_DECK_ENTRY_SETTINGS: DeckEntrySettings = {
   ],
 };
 
+export const DECK_ENTRY_EDGE_SNAP_RATIO = 0.02;
+
 export function deckTriggerHidden(settings: DeckEntrySettings | null) {
   return settings?.showDeckTrigger === false;
+}
+
+export function deckEntryEdgeSide(
+  position: DeckEntryPosition | null,
+): DeckEntryEdgeSide | null {
+  if (!position) return null;
+  if (position.x <= DECK_ENTRY_EDGE_SNAP_RATIO) return 'left';
+  if (position.x >= 1 - DECK_ENTRY_EDGE_SNAP_RATIO) return 'right';
+  return null;
 }
 
 function normalizeHiddenCardIds(value: unknown) {
@@ -158,6 +177,11 @@ export function applyDeckEntrySettingsMutation(
     return settings.showDeckTrigger === mutation.visible
       ? settings
       : { ...settings, showDeckTrigger: mutation.visible };
+  }
+  if (mutation.kind === 'set-edge-auto-hide') {
+    return settings.autoHideAtEdge === mutation.enabled
+      ? settings
+      : { ...settings, autoHideAtEdge: mutation.enabled };
   }
   if (mutation.kind === 'set-fullscreen-auto-hide') {
     return settings.autoHideInFullscreen === mutation.enabled
@@ -306,6 +330,7 @@ export function normalizeDeckEntrySettings(value: unknown): DeckEntrySettings {
   }
   const settings = value as Record<string, unknown>;
   const showDeckTrigger = settings.showDeckTrigger;
+  const autoHideAtEdge = settings.autoHideAtEdge;
   const autoHideInFullscreen = settings.autoHideInFullscreen;
   const showToolbarBadge = settings.showToolbarBadge;
   const showDeckTriggerBadge = settings.showDeckTriggerBadge;
@@ -314,6 +339,10 @@ export function normalizeDeckEntrySettings(value: unknown): DeckEntrySettings {
       typeof showDeckTrigger === 'boolean'
         ? showDeckTrigger
         : DEFAULT_DECK_ENTRY_SETTINGS.showDeckTrigger,
+    autoHideAtEdge:
+      typeof autoHideAtEdge === 'boolean'
+        ? autoHideAtEdge
+        : DEFAULT_DECK_ENTRY_SETTINGS.autoHideAtEdge,
     autoHideInFullscreen:
       typeof autoHideInFullscreen === 'boolean'
         ? autoHideInFullscreen
@@ -338,6 +367,7 @@ function isDeckEntrySettings(value: unknown): value is DeckEntrySettings {
     typeof value === 'object' &&
     !Array.isArray(value) &&
     typeof settings.showDeckTrigger === 'boolean' &&
+    typeof settings.autoHideAtEdge === 'boolean' &&
     typeof settings.autoHideInFullscreen === 'boolean' &&
     typeof settings.showToolbarBadge === 'boolean' &&
     typeof settings.showDeckTriggerBadge === 'boolean' &&
@@ -355,7 +385,10 @@ export function isDeckEntrySettingsMutation(
 ): value is DeckEntrySettingsMutation {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const mutation = value as Record<string, unknown>;
-  if (mutation.kind === 'set-fullscreen-auto-hide') {
+  if (
+    mutation.kind === 'set-edge-auto-hide' ||
+    mutation.kind === 'set-fullscreen-auto-hide'
+  ) {
     return typeof mutation.enabled === 'boolean';
   }
   if (mutation.kind === 'set-trigger-visible') {

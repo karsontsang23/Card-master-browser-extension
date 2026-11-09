@@ -195,11 +195,14 @@ export function syncSettings(services: Services): SyncPortableAdapter[] {
           ],
         ),
       (value) => {
-        const { autoHideInFullscreen, ...settings } =
+        const { autoHideAtEdge, autoHideInFullscreen, ...settings } =
           normalizeDeckEntrySettings(value);
         return {
           ...settings,
           // Keep legacy cloud records valid; apply fills the new default.
+          ...(record(value) && 'autoHideAtEdge' in value
+            ? { autoHideAtEdge }
+            : {}),
           ...(record(value) && 'autoHideInFullscreen' in value
             ? { autoHideInFullscreen }
             : {}),

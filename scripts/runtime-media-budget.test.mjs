@@ -11,6 +11,16 @@ const logoPath = resolve(
   root,
   'assets/userscript-deck/visual/action-icons/card-master-logo.png',
 );
+const edgeLogoPaths = [
+  resolve(
+    root,
+    'assets/userscript-deck/visual/action-icons/card-master-edge-left.webp',
+  ),
+  resolve(
+    root,
+    'assets/userscript-deck/visual/action-icons/card-master-edge-right.webp',
+  ),
+];
 
 async function filesRecursively(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -39,5 +49,14 @@ describe('runtime media budget', () => {
     expect(metadata.width).toBe(512);
     expect(metadata.height).toBe(512);
     expect((await stat(logoPath)).size).toBeLessThan(200 * 1024);
+  });
+
+  it('keeps the edge-docked plaques compact and paired', async () => {
+    for (const path of edgeLogoPaths) {
+      const metadata = await sharp(path).metadata();
+      expect(metadata.width).toBe(144);
+      expect(metadata.height).toBe(480);
+      expect((await stat(path)).size).toBeLessThan(64 * 1024);
+    }
   });
 });

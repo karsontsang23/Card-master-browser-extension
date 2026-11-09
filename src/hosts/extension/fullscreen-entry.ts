@@ -7,7 +7,7 @@ export const FULLSCREEN_ENTRY_STYLES = `
   :host([popover]) {
     position: fixed;
     inset: 0;
-    width: 100vw;
+    width: 100%;
     height: 100dvh;
     max-width: none;
     max-height: none;

@@ -38,8 +38,15 @@ export function useDeckEntryRuntime({
     deckEntrySettings ?? DEFAULT_DECK_ENTRY_SETTINGS;
 
   useLayoutEffect(() => {
+    if (!libraryReady || !deckEntrySettings || !deckTriggerElement) {
+      setDeckLaunchReady(false);
+      return;
+    }
+    if (deckLaunchSourceReady(deckTriggerElement)) {
+      setDeckLaunchReady(true);
+      return;
+    }
     setDeckLaunchReady(false);
-    if (!libraryReady || !deckEntrySettings || !deckTriggerElement) return;
     let cancelled = false;
     let frame = 0;
     let attempts = 0;
